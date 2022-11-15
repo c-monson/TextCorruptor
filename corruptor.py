@@ -13,6 +13,7 @@ nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
 
+csv.field_size_limit(1000000)
 
 class Corruptor:
 
@@ -25,12 +26,12 @@ class Corruptor:
         # Some knobs to tweak
         self.email_regex = r"^.*X-FileName:.*?\n\n(.*)$"
 
-        self.fraction_of_time_to_swap_neighbors = 0.1
-        self.fraction_of_words_to_randomly_delete = 0.1
+        self.fraction_of_time_to_swap_neighbors = 0.03
+        self.fraction_of_words_to_randomly_delete = 0.03
 
-        self.fraction_of_words_to_misspell = 0.1
-        self.fraction_of_content_words_to_replace_with_synonyms = 0.1
-        self.fraction_of_stopwords_to_remove = 0.1
+        #self.fraction_of_words_to_misspell = 0.1
+        self.fraction_of_content_words_to_replace_with_synonyms = 0.15
+        self.fraction_of_stopwords_to_remove = 0.03
 
     def corrupt_file(self):
         with open(self.input_filename, encoding='utf-8') as input_file, \
@@ -42,8 +43,6 @@ class Corruptor:
             first_line = True
             for row in enron_reader:
                 counter += 1
-                if counter > 10:
-                    return
 
                 # Skip first line of Enron .csv file, it contains headers
                 if first_line:
@@ -56,8 +55,11 @@ class Corruptor:
                 rejoined_email = ' '.join(email)
                 rejoined_corrupted_email = ' '.join(corrupted_email)
 
-                print(f"email:     {rejoined_email}")
-                print(f"corrupted: {rejoined_corrupted_email}")
+                if counter % 5000 == 0:
+                    print(f"Sentence #: {counter}")
+                    print(f"      email: {rejoined_email}")
+                    print(f"  corrupted: {rejoined_corrupted_email}")
+                    print()
                 output_file.write(rejoined_email + '\n')
                 output_file.write(rejoined_corrupted_email + '\n')
                 output_file.write('\n')
@@ -75,9 +77,9 @@ class Corruptor:
 
     def corrupt_one_email(self, email):
         corrupted_email = email
-        #corrupted_email = self.corrupt_by_swapping_with_neighbors(corrupted_email)
-        #corrupted_email = self.corrupt_by_deleting_words(corrupted_email)
-        #corrupted_email = self.corrupt_by_deleting_stop_words(corrupted_email)
+        corrupted_email = self.corrupt_by_swapping_with_neighbors(corrupted_email)
+        corrupted_email = self.corrupt_by_deleting_words(corrupted_email)
+        corrupted_email = self.corrupt_by_deleting_stop_words(corrupted_email)
         corrupted_email = self.corrupt_by_replacing_with_synonym(corrupted_email)
 
         return corrupted_email
@@ -132,36 +134,43 @@ class Corruptor:
     def corrupt_by_replacing_with_synonym(self, email):
         output_email = []
         for word in email:
-            replace_word = False
-            if word not in self.stopWords:
-                random_value = random.random()
-                if random_value < self.fraction_of_stopwords_to_remove:
-                    replace_word = True
+            word_lower = word.lower()
 
-            # Check if this word is in WordNet
-            if replace_word:
-                synsets = wordnet.synsets(word)
-                if len(synsets) == 0:
-                    replace_word = False
-
-            if not replace_word:
+            if word_lower in self.stopWords:
                 output_email.append(word)
                 continue
 
+            random_value = random.random()
+            if random_value > self.fraction_of_content_words_to_replace_with_synonyms:
+                output_email.append(word)
+                continue
+
+            # Find all the synonyms (i.e. lemmas in any synsets of 'word') whose surface forms
+            # are not identical to the word itself (a surprising number *are*!)
+            #
+            # If this word is not in WordNet or if all the synonyms are actually just the same word form
+            # then we'll just skip this word.
+            synonym_surface_forms = set()
+            synsets = wordnet.synsets(word)
+            for synset in synsets:
+                synonym_lemmas = synset.lemmas()
+                for synonym_lemma in synonym_lemmas:
+                    synonym_surface_form = synonym_lemma.name()
+                    if synonym_surface_form != word_lower:
+                        synonym_surface_forms.add(synonym_surface_form)
+
+            if len(synonym_surface_forms) == 0:
+                output_email.append(word)
+                continue
 
             # else: replace word
+            synonym_surface_forms = list(synonym_surface_forms)
 
             # pick a random synset that word participates in
-            random_synset_index = random.randrange(len(synsets))
-            synset = synsets[random_synset_index]
-
-            # Get the words (aka 'lemmas') in the synset
-            synonym_lemmas = synset.lemmas()
-
-            # Pick a random synonym (aka lemma) in the synset
-            random_lemma_index = random.randrange(len(synonym_lemmas))
-            synonym_lemma = synonym_lemmas[random_lemma_index]
-            output_email.append(synonym_lemma.name())
+            random_synonym_surface_form_index = random.randrange(len(synonym_surface_forms))
+            surface_form = synonym_surface_forms[random_synonym_surface_form_index]
+            surface_form = surface_form.replace('_', ' ')
+            output_email.append(surface_form)
 
         return output_email
 
