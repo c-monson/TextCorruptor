@@ -1,5 +1,6 @@
 
 import csv
+import json
 import random
 import re
 
@@ -13,9 +14,12 @@ nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('omw-1.4')
 
-csv.field_size_limit(1000000)
+csv.field_size_limit(10000000)
 
 class Corruptor:
+
+    CLEAN = 'clean'
+    CORRUPT = 'corrupt'
 
     def __init__(self, input_filename, output_filename):
         self.input_filename = input_filename
@@ -44,6 +48,10 @@ class Corruptor:
             for row in enron_reader:
                 counter += 1
 
+                # Debugging
+                #if counter % 10 == 0:
+                #    break
+
                 # Skip first line of Enron .csv file, it contains headers
                 if first_line:
                     first_line = False
@@ -52,16 +60,17 @@ class Corruptor:
                 email = self.extract_email(row)
                 corrupted_email = self.corrupt_one_email(email)
 
-                rejoined_email = ' '.join(email)
-                rejoined_corrupted_email = ' '.join(corrupted_email)
+                one_email = {}
+
+                one_email[Corruptor.CLEAN] = ' '.join(email)
+                one_email[Corruptor.CORRUPT] = ' '.join(corrupted_email)
 
                 if counter % 5000 == 0:
                     print(f"Sentence #: {counter}")
-                    print(f"      email: {rejoined_email}")
-                    print(f"  corrupted: {rejoined_corrupted_email}")
+                    print(f"      email: {one_email[Corruptor.CLEAN]}")
+                    print(f"  corrupted: {one_email[Corruptor.CORRUPT]}")
                     print()
-                output_file.write(rejoined_email + '\n')
-                output_file.write(rejoined_corrupted_email + '\n')
+                output_file.write(json.dumps(one_email))
                 output_file.write('\n')
 
     # An Enron email has a bunch of email header stuff and other junk to strip out
@@ -180,6 +189,6 @@ class Corruptor:
 random.seed(1) # For repeatability
 
 corruptor = Corruptor("/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/emails.csv",
-                      "/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/corrupted.txt")
+                      "/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/corrupted.json")
 
 corruptor.corrupt_file()
