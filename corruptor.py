@@ -30,6 +30,12 @@ class Corruptor:
         # Some knobs to tweak
         self.email_regex = r"^.*X-FileName:.*?\n\n(.*)$"
 
+        # Many emails have embedded forwarded email text inside them. The embeded text
+        # has all kinds of fields (like "To:", the date, etc.) that are not useful for our natural
+        # text decorruptor. So this regex matches the "Forward header" and strips it out. (Leaving
+        # the actual text of the forwarded email itself).
+        self.forwarded_regex = r"[^\n]*Forwarded by.*?Subject:[^\n]*"
+
         self.fraction_of_time_to_swap_neighbors = 0.03
         self.fraction_of_words_to_randomly_delete = 0.03
 
@@ -49,7 +55,7 @@ class Corruptor:
                 counter += 1
 
                 # Debugging
-                #if counter % 10 == 0:
+                #if counter % 15 == 0:
                 #    break
 
                 # Skip first line of Enron .csv file, it contains headers
@@ -80,7 +86,16 @@ class Corruptor:
         email_match = re.search(self.email_regex, email, flags=re.DOTALL)
         clean_email = email_match.group(1)
 
-        tokenized_email = nltk.word_tokenize(clean_email)
+        clean_email_no_forward_text = re.sub(self.forwarded_regex, "", clean_email, flags=re.DOTALL)
+
+        # Debugging
+        #if clean_email is not clean_email_no_forward_text:
+        #    print(f"CLEAN: ")
+        #    print(clean_email)
+        #    print("NO FORWARD")
+        #    print(clean_email_no_forward_text)
+
+        tokenized_email = nltk.word_tokenize(clean_email_no_forward_text)
 
         return tokenized_email
 
@@ -189,6 +204,6 @@ class Corruptor:
 random.seed(1) # For repeatability
 
 corruptor = Corruptor("/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/emails.csv",
-                      "/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/corrupted.json")
+                      "/Users/christianmonson/Professional/BrackenFern/A.I. Talks/Students/Krish (Mm m.)/Enron dataset/corrupted_noForwardText.json")
 
 corruptor.corrupt_file()
